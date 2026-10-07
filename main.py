@@ -4,6 +4,9 @@ import os
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from embedding import create_embedding
+from similarity import cosine_similarity
+
 
 load_dotenv()
 api_key=os.getenv("GEMINI_API_KEY")
@@ -96,32 +99,61 @@ def main():
     documents=load_documents()
     print("Documents loaded")
 
-    for document in documents:
-        print(document['filename'])
-
-    question = "How many annual leave days do employees receive?"
-
-    print("\nQuestion:")
-    print(question)
-    results=retrive(question,documents)
-    print('/nRetrived documents')
-
-    if not results:
-        print("No relevant documents found")
-        return 
     
-    for result in results:
-        print(f"File:{result['filename']}")
-        print(f'Score:{result['score']}')
 
-    best_result=results[0]
-    context=best_result['text']
-    print(context)
+    questions = ["How many vacation days do employees receive?",
+        "Does the company provide health insurance?",
+        "How many days can I work from home?"]
 
-    answer=generate_answer(question,context)
+    for question in questions:
 
-    print("\nGeminin answer")
-    print(answer)
+        print("\n" + "=" * 60)
+        print(f"QUESTION: {question}")
+        print("=" * 60)
+        question_embedding = create_embedding(question)
+
+        results=[]
+
+        for document in documents:
+            print(f"\n Creating embedding for "
+                f"{document['filename']}")
+
+            document_embedding=create_embedding(document['text'])
+
+            similarity=cosine_similarity(question_embedding,document_embedding)
+
+            results.append({
+                "filename":document['filename'],
+                'text':document['text'],
+                'similarity':similarity
+            })
+
+        results.sort(
+            key=lambda item: item['similarity'],reverse=True,
+        )
+
+        print("Ranking--------")
+        for index,result in enumerate(results,start=1):
+            print(f"{index}."
+                f"{result['filename']}"
+                f"->{result['similarity']:.4f}")
+        if not results:
+
+            print("No relevant documents found")
+            return 
+        
+        
+
+        best_result=results[0]
+
+        print(f"file:{best_result['filename']}")
+        print(f"Similarity:"
+            f"{best_result['similarity']:.4f}")
+
+        # answer=generate_answer(question,context)
+
+        # print("\nGeminin answer")
+        # print(answer)
 
 if __name__=="__main__":
     main()
