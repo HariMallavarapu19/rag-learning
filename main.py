@@ -8,6 +8,7 @@ from google.genai import types
 from embedding import create_embedding
 from similarity import cosine_similarity
 from chunking import chunk_text
+from vector_store import VectorStore
 
 
 load_dotenv()
@@ -22,6 +23,10 @@ client = genai.Client(api_key=api_key)
 MODEL = "gemini-3.6-flash"
 
 DOCUMENTS_DIR = Path("documents")
+
+VECTOR_STORE_PATH="data/vector_store.json"
+
+TOP_K=3
 
 
 def load_documents(
@@ -117,11 +122,47 @@ def prepare_chunks(documents):
 
     return all_chunks
 
+def build_vector_store(documents):
+    chunks=prepare_chunks(documents)
+    store=VectorStore(storage_path=VECTOR_STORE_PATH)
+
+    print(f"\n Indexing {len(chunks)} chunks>>>>")
+
+    for chunk in chunks:
+        record_id=(f"{chunk['filename']}_{chunk['chunk_id']}")
+        embedding=create_embedding(chunk['text'])
+
+        store.add(
+            record_id=record_id,
+            text=chunk['text'],
+            embedding=embedding,
+            metadata={
+                "document":chunk['filename'],
+                'section':chunk['section'],
+                'chunk_id':chunk['chunk_id']
+            }
+        )
+    print(f"Indexed:{record_id}")
+    store.save()
+    return store
+
+def get_vector_store(documents):
+    store=VectorStore(storage_path=VECTOR_STORE_PATH)
+    if Path(VECTOR_STORE_PATH).exists():
+        print("\nLoading existing vector store...")
+        store.load()
+
+    else:
+        print("\nNo existing vector store found.")
+        print("Creating a new vector store...")
+        store=build_vector_store(documents)
+    return store
+
 
 def retrive_chunks(
     question,
-    documents,
-    top_k=3,
+    store,
+    top_k=TOP_K,
 ):
     """
     Retrieve the Top-K chunks using embedding similarity.
@@ -131,40 +172,11 @@ def retrive_chunks(
         question
     )
 
-    # Create structured chunks from every document.
-    chunks = prepare_chunks(documents)
+    results=store.search(query_embedding=question_embedding,
+                         top_k=top_k)
 
-    results = []
-
-    for chunk in chunks:
-
-        chunk_embedding = create_embedding(
-            chunk["text"]
-        )
-
-        similarity = cosine_similarity(
-            question_embedding,
-            chunk_embedding,
-        )
-
-        results.append(
-            {
-                "filename": chunk["filename"],
-                "chunk_id": chunk["chunk_id"],
-                "section": chunk["section"],
-                "similarity": similarity,
-                "text": chunk["text"],
-            }
-        )
-
-    # Sort from highest to lowest similarity.
-    results.sort(
-        key=lambda item: item["similarity"],
-        reverse=True,
-    )
-
-    return results[:top_k]
-
+    return results
+    
 
 def generate_answer(
     question,
@@ -173,21 +185,26 @@ def generate_answer(
     """
     Generate an answer using the retrieved context.
     """
+    if not retrived_chunks:
+        return (
+            "I cannot find that information "
+            "in the provided documents."
+        )
 
     context_parts = []
 
     for chunk in retrived_chunks:
-
+        metadata=chunk['metadata']
         context_parts.append(
             f"""
-SOURCE: {chunk['filename']}
-SECTION: {chunk['section']}
-CHUNK: {chunk['chunk_id']}
+SOURCE: {metadata['document']}
+SECTION: {metadata['section']}
+CHUNK: {metadata['chunk_id']}
 
 CONTENT:
 {chunk['text']}
 """
-        )
+   )
 
     context = "\n".join(context_parts)
 
@@ -242,6 +259,14 @@ def main():
     for document in documents:
         print(document["filename"])
 
+    store = get_vector_store(
+        documents
+    )
+
+    print(
+        f"\nVector store contains {store.count()} records."
+    )
+
     # Step 2: Ask a question.
     question = input(
         "\nEnter your question: "
@@ -257,8 +282,8 @@ def main():
     # Step 3: Retrieve relevant chunks.
     retrived_chunks = retrive_chunks(
         question,
-        documents,
-        top_k=3,
+        store,
+        top_k=TOP_K,
     )
 
     print("\nTop-K Retrieved Chunks")
@@ -268,11 +293,13 @@ def main():
         retrived_chunks,
         start=1,
     ):
+        metadata = chunk["metadata"]
 
         print(f"\nRank: {index}")
-        print(f"Document: {chunk['filename']}")
-        print(f"Section: {chunk['section']}")
-        print(f"Chunk ID: {chunk['chunk_id']}")
+        print(f"Document: {metadata['document']}")
+        print(f"Section: {metadata['section']}")
+        print(f"Chunk ID: {metadata['chunk_id']}")
+
 
         print(
             f"Similarity: {chunk['similarity']:.4f}"
