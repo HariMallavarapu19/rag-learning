@@ -1,6 +1,10 @@
-.venv/
-venv/
-__pycache__/
-*.pyc
 .env
+vev/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated vector databases
 data/
