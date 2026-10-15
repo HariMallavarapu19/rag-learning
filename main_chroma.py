@@ -39,6 +39,7 @@ store = ChromaVectorStore()
 def retrieve_chunks(
     question: str,
     top_k: int = TOP_K,
+    similarity_threshold:float=0.65
 ) -> list[dict]:
 
     results = store.search(
@@ -46,7 +47,11 @@ def retrieve_chunks(
         top_k=top_k,
     )
 
-    return results
+    filterd_results=[result for result in results
+                      if result['similarity'] >= similarity_threshold
+                    ]
+
+    return filterd_results
 
 
 # ==========================================
