@@ -19,7 +19,7 @@ class ChromaVectorStore:
             metadata={"description":"Company policy document chunks",
                       "hnsw:space":"cosine"}
         )
-
+        
     def add_chunks(self,chunks:list[dict]):
         for chunk in chunks:
             embedding=create_embedding(chunk['text'])
@@ -60,5 +60,6 @@ class ChromaVectorStore:
         return retrieved_chunks
     def count(self)->int:
         return self.collection.count()
+    
     
 

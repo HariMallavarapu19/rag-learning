@@ -22,7 +22,7 @@ def main():
         print("\n"+"-"*70)
         print(f"TOP_K={top_k}")
         print("-"*70)
-
+ 
         for rank,result in enumerate(results,start=1):
             metadata=result['metadata']
             print(f"\n Rank:{rank}")

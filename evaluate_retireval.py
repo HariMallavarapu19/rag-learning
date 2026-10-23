@@ -184,7 +184,7 @@ def evaluate_retrieval()->None:
             f"{sum(precision_scores)/total_questions:.3f}"
     )
 
-    print(f"Mean Recall@{TOP_K}"
+    print(f"Mean Recall@{TOP_K}:"
             f"{sum(recall_scores)/total_questions:.3f}"
     )
     print(
